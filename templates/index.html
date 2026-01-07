@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATS Resume Checker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 750: '#2d3748', 850: '#1a202c', 950: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Icons & Fonts -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Scrollbars */
+        textarea::-webkit-scrollbar,
+        .chat-scroll::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        textarea::-webkit-scrollbar-track,
+        .chat-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        textarea::-webkit-scrollbar-thumb,
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .dark textarea::-webkit-scrollbar-track,
+        .dark .chat-scroll::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        .dark textarea::-webkit-scrollbar-thumb,
+        .dark .chat-scroll::-webkit-scrollbar-thumb {
+            background-color: #475569;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        .loader {
+            border: 3px solid #e2e8f0;
+            border-radius: 50%;
+            border-top: 3px solid #4f46e5;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        .dark .loader {
+            border-color: #334155;
+            border-top-color: #6366f1;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .score-circle {
+            transition: stroke-dashoffset 1.5s ease-in-out;
+        }
+
+        /* Interactive Elements */
+        .template-btn.active {
+            background-color: #eef2ff;
+            border-color: #6366f1;
+            color: #4338ca;
+        }
+
+        .dark .template-btn.active {
+            background-color: #312e81;
+            border-color: #6366f1;
+            color: #e0e7ff;
+        }
+
+        /* Chat */
+        .chat-message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .chat-user {
+            background-color: #4f46e5;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+
+        .chat-bot {
+            background-color: #ffffff;
+            color: #1e293b;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .dark .chat-bot {
+            background-color: #1e293b;
+            color: #e2e8f0;
+            border-color: #334155;
+        }
+
+        @keyframes pulse-red {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+
+        .listening {
+            animation: pulse-red 1.5s infinite;
+            background-color: #ef4444 !important;
+            color: white !important;
+            border-color: #ef4444 !important;
+        }
+
+        #voice-select option {
+            background-color: #fff;
+            color: #333;
+        }
+
+        .dark #voice-select option {
+            background-color: #1e293b;
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body class="text-slate-800 bg-f8fafc dark:bg-slate-950 dark:text-slate-200 relative transition-colors duration-300">
+
+    <!-- Navbar -->
+    <nav
+        class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 shadow-sm bg-opacity-90 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="relative w-8 h-8 flex items-center justify-center bg-gradient-to-br from-indigo-600 to-violet-600 rounded-lg">
+                        <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5 text-white" stroke="currentColor"
+                            stroke-width="2.5">
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                            <path d="M14 2v6h6" />
+                            <path d="m9 15 2 2 4-4" />
+                        </svg>
+                    </div>
+                    <div class="flex flex-col leading-tight">
+                        <span class="font-bold text-lg tracking-tight text-slate-900 dark:text-white">ATS<span
+                                class="text-indigo-600 dark:text-indigo-400">Checker</span></span>
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">AI
+                            Powered</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleTheme()"
+                        class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700">
+                        <svg class="w-5 h-5 block dark:hidden text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+                                clip-rule="evenodd"></path>
+                        </svg>
+                        <svg class="w-5 h-5 hidden dark:block text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                        </svg>
+                    </button>
+                    <div class="h-4 w-px bg-slate-200 dark:bg-slate-700"></div>
+                    <button onclick="openTemplateModal()"
+                        class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><i
+                            data-lucide="layout-template" class="w-4 h-4"></i><span
+                            class="hidden sm:inline">Templates</span></button>
+                    <button onclick="loadSampleData()"
+                        class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><i
+                            data-lucide="refresh-cw" class="w-4 h-4"></i><span class="hidden sm:inline">Load
+                            Sample</span></button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="max-w-7xl mx-auto px-4 py-10 space-y-8">
+        <div class="text-center max-w-2xl mx-auto mb-10">
+            <h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-4">ATS Resume Optimizer</h1>
+            <p class="text-slate-500 dark:text-slate-400">Analyze your resume against job descriptions with AI
+                precision.</p>
+        </div>
+
+        <!-- Inputs -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div
+                class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col h-[500px]">
+                <div
+                    class="px-5 py-3 border-b flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50 dark:border-slate-700">
+                    <div class="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2"><i
+                            data-lucide="file-text" class="w-4 h-4 text-indigo-600"></i> Your Resume</div>
+                    <label for="resume-upload"
+                        class="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300 border px-3 py-1.5 rounded hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700">Upload
+                        PDF</label>
+                    <input type="file" id="resume-upload" class="hidden" accept=".txt,.pdf">
+                </div>
+                <div class="flex-1 p-4 relative">
+                    <textarea id="resume-text"
+                        class="w-full h-full resize-none bg-transparent outline-none text-sm dark:text-slate-300"
+                        placeholder="Paste resume text..."></textarea>
+                    <div id="resume-loading"
+                        class="absolute inset-0 bg-white/90 dark:bg-slate-800/90 hidden flex-col items-center justify-center z-10">
+                        <div class="loader"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col h-[500px]">
+                <div
+                    class="px-5 py-3 border-b flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50 dark:border-slate-700">
+                    <div class="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2"><i
+                            data-lucide="briefcase" class="w-4 h-4 text-violet-600"></i> Job Description</div>
+                    <label for="jd-upload"
+                        class="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300 border px-3 py-1.5 rounded hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700">Upload
+                        PDF</label>
+                    <input type="file" id="jd-upload" class="hidden" accept=".txt,.pdf">
+                </div>
+                <div class="flex-1 p-4 relative">
+                    <textarea id="jd-text"
+                        class="w-full h-full resize-none bg-transparent outline-none text-sm dark:text-slate-300"
+                        placeholder="Paste job description..."></textarea>
+                    <div id="jd-loading"
+                        class="absolute inset-0 bg-white/90 dark:bg-slate-800/90 hidden flex-col items-center justify-center z-10">
+                        <div class="loader"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analyze Button -->
+        <div class="flex justify-center pt-6">
+            <button onclick="startAnalysis()" id="analyze-btn"
+                class="bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold py-4 px-10 rounded-full shadow-lg hover:scale-105 transition-transform flex items-center gap-3">
+                <span>Analyze Resume</span> <i data-lucide="arrow-right" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading-state" class="hidden flex-col items-center justify-center py-12 space-y-4">
+            <div class="loader w-12 h-12 border-4 border-t-indigo-600 dark:border-t-indigo-400"></div>
+            <p class="text-slate-500 animate-pulse">Analyzing...</p>
+        </div>
+
+        <!-- Results -->
+        <div id="results-section" class="hidden space-y-8 animate-fade-in">
+            <div
+                class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
+                <div class="flex items-center gap-12">
+                    <div class="relative w-40 h-40 flex-shrink-0">
+                        <svg class="w-full h-full transform -rotate-90">
+                            <circle cx="80" cy="80" r="70" stroke="currentColor" stroke-width="12" fill="transparent"
+                                class="text-slate-100 dark:text-slate-700" />
+                            <circle id="score-circle" cx="80" cy="80" r="70" stroke="currentColor" stroke-width="12"
+                                fill="transparent" class="text-indigo-500 score-circle" stroke-dasharray="440"
+                                stroke-dashoffset="440" stroke-linecap="round" />
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span id="score-text" class="text-4xl font-bold text-slate-800 dark:text-white">0</span>
+                            <span class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Score</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Analysis Complete</h2>
+                        <div id="summary-badges" class="flex gap-2 mt-4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 space-y-6">
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div
+                            class="px-6 py-4 border-b bg-slate-50/50 dark:bg-slate-900/50 dark:border-slate-700 flex justify-between">
+                            <h3 class="font-bold text-slate-800 dark:text-slate-200">Missing Keywords</h3>
+                            <span class="text-xs bg-rose-50 text-rose-700 px-2 rounded border border-rose-100">High
+                                Priority</span>
+                        </div>
+                        <div class="p-6 flex flex-wrap gap-2" id="missing-keywords-container"></div>
+                    </div>
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div class="px-6 py-4 border-b bg-slate-50/50 dark:bg-slate-900/50 dark:border-slate-700">
+                            <h3 class="font-bold text-slate-800 dark:text-slate-200">Matched Keywords</h3>
+                        </div>
+                        <div class="p-6 flex flex-wrap gap-2" id="matched-keywords-container"></div>
+                    </div>
+                </div>
+                <div class="space-y-6">
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div class="px-6 py-4 border-b bg-indigo-50/50 dark:bg-slate-900/50 dark:border-slate-700">
+                            <h3 class="font-bold text-indigo-900 dark:text-indigo-300">AI Insights</h3>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1"><span
+                                        class="font-medium dark:text-slate-300">Impact Score</span><span
+                                        id="impact-score-text" class="font-bold text-indigo-600">0/100</span></div>
+                                <div class="h-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <div id="impact-bar" class="h-full bg-indigo-500" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold uppercase text-slate-500 mb-2">Suggestions</h4>
+                                <div id="ai-suggestions" class="space-y-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div class="px-6 py-4 border-b bg-slate-50/50 dark:bg-slate-900/50 dark:border-slate-700">
+                            <h3 class="font-bold text-slate-800 dark:text-slate-200">Technical Checks</h3>
+                        </div>
+                        <div class="divide-y divide-slate-100 dark:divide-slate-700" id="checks-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Chat Widget -->
+    <div class="fixed bottom-6 right-6 z-[100]">
+        <button onclick="toggleChat()"
+            class="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-105 transition-transform"><i
+                data-lucide="sparkles" class="w-8 h-8"></i></button>
+        <div id="chat-window"
+            class="hidden absolute bottom-20 right-0 w-[360px] bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col h-[500px]">
+            <div
+                class="bg-gradient-to-r from-indigo-600 to-violet-600 p-4 flex justify-between items-center text-white rounded-t-2xl">
+                <div class="flex items-center gap-2">
+                    <span class="font-bold">Resume Architect</span>
+                    <button onclick="toggleVoice()" id="voice-btn" class="p-1 hover:bg-white/20 rounded"><i
+                            data-lucide="volume-2" class="w-4 h-4"></i></button>
+                </div>
+                <button onclick="toggleChat()"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <!-- Voice Select (Hidden by default) -->
+            <select id="voice-select"
+                class="hidden w-full text-xs p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 outline-none"></select>
+
+            <div id="chat-messages"
+                class="flex-1 p-4 overflow-y-auto flex flex-col gap-3 bg-slate-50 dark:bg-slate-900">
+                <div class="chat-message chat-bot">Hello! I'm your AI assistant. I can read your analysis results and
+                    suggest improvements. Try asking: "How can I improve my score?"</div>
+            </div>
+
+            <div class="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex gap-2">
+                <input id="chat-input" class="flex-1 outline-none text-sm bg-transparent dark:text-white"
+                    placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
+                <button onclick="startListening()" id="mic-btn" class="p-2 text-slate-400 hover:text-indigo-600"><i
+                        data-lucide="mic" class="w-5 h-5"></i></button>
+                <button onclick="sendMessage()" class="p-2 text-indigo-600"><i data-lucide="send"
+                        class="w-5 h-5"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates Modal -->
+    <div id="template-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeTemplateModal()"></div>
+        <div class="fixed inset-0 z-10 flex items-center justify-center p-4">
+            <div
+                class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-3xl border border-slate-200 dark:border-slate-700 p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">Template Gallery</h3>
+                    <button onclick="closeTemplateModal()"><i data-lucide="x"
+                            class="w-6 h-6 text-slate-400"></i></button>
+                </div>
+                <div class="flex gap-2 mb-4">
+                    <button onclick="switchTemplate('standard')" id="btn-standard"
+                        class="template-btn active px-4 py-2 rounded-lg text-sm font-medium border border-slate-200">Standard</button>
+                    <button onclick="switchTemplate('tech')" id="btn-tech"
+                        class="template-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-200">Tech</button>
+                    <button onclick="switchTemplate('executive')" id="btn-executive"
+                        class="template-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-200">Executive</button>
+                </div>
+                <div id="template-description"
+                    class="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-sm text-indigo-900 dark:text-indigo-200 mb-4">
+                </div>
+                <pre id="template-content"
+                    class="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg text-xs font-mono whitespace-pre-wrap h-64 overflow-auto border border-slate-200 dark:border-slate-700 dark:text-slate-300"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Setup
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        lucide.createIcons();
+        function toggleTheme() { document.documentElement.classList.toggle('dark'); }
+
+        // --- Sample Data ---
+        function loadSampleData() {
+            const r = "John Doe\nSoftware Engineer\nEmail: john@example.com\n\nEXPERIENCE\nSenior Developer | TechCorp | 2020-Present\n- Led development of React-based dashboard, improving load times by 40% using code-splitting.\n- Mentored 3 junior developers and conducted code reviews.\n\nSKILLS\nJavaScript, React, Node.js, AWS, Docker, Python";
+            const j = "Job Title: Senior Software Engineer\n\nResponsibilities:\n- Develop user interfaces using React.js.\n- optimize components for maximum performance.\n\nRequirements:\n- Strong proficiency in JavaScript and Python.\n- Experience with AWS and Docker.\n- Ability to mentor junior team members.";
+            document.getElementById('resume-text').value = r;
+            document.getElementById('jd-text').value = j;
+        }
+
+        // --- File Upload ---
+        async function readPdf(f) { const b = await f.arrayBuffer(); const doc = await pdfjsLib.getDocument({ data: b }).promise; let t = ''; for (let i = 1; i <= doc.numPages; i++) { const p = await doc.getPage(i); const c = await p.getTextContent(); t += c.items.map(s => s.str).join(' ') + '\n' } return t }
+        ['resume', 'jd'].forEach(type => {
+            document.getElementById(type + '-upload').addEventListener('change', async e => {
+                const f = e.target.files[0]; if (!f) return;
+                const l = document.getElementById(type + '-loading'); l.classList.remove('hidden'); l.classList.add('flex');
+                try { document.getElementById(type + '-text').value = f.type === 'application/pdf' ? await readPdf(f) : await f.text(); }
+                catch (e) { alert(e.message) } finally { l.classList.add('hidden'); l.classList.remove('flex'); }
+            });
+        });
+
+        // --- Templates ---
+        const templates = {
+            standard: { desc: "Gold standard for corporate jobs.", content: "[NAME]\n[Contact]\n\nEXPERIENCE\n[Role] | [Company]\n- Achieved X using Y." },
+            tech: { desc: "Skills-first format for devs.", content: "[NAME]\n[GitHub]\n\nSKILLS\nReact, Node, AWS\n\nEXPERIENCE\n[Role]\n- Built API..." },
+            executive: { desc: "Leadership focus.", content: "[NAME]\n\nEXECUTIVE PROFILE\nVisionary leader driving growth.\n\nCORE COMPETENCIES\nStrategy, P&L" }
+        };
+        function openTemplateModal() { document.getElementById('template-modal').classList.remove('hidden'); switchTemplate('standard'); }
+        function closeTemplateModal() { document.getElementById('template-modal').classList.add('hidden'); }
+        function switchTemplate(k) {
+            document.getElementById('template-content').textContent = templates[k].content;
+            document.getElementById('template-description').textContent = templates[k].desc;
+            document.querySelectorAll('.template-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + k).classList.add('active');
+        }
+
+        // --- Voice & Chat ---
+        let voiceEnabled = false;
+        let voices = [];
+
+        function loadVoices() {
+            voices = window.speechSynthesis.getVoices();
+            const s = document.getElementById('voice-select');
+            s.innerHTML = voices.map(v => `<option value="${v.name}">${v.name}</option>`).join('');
+        }
+        loadVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            const btn = document.getElementById('voice-btn');
+            const sel = document.getElementById('voice-select');
+            if (voiceEnabled) {
+                btn.classList.add('text-indigo-200');
+                sel.classList.remove('hidden');
+                // Try to speak a welcome if voices are ready
+                if (voices.length > 0) speak("Voice mode enabled.");
+            } else {
+                btn.classList.remove('text-indigo-200');
+                sel.classList.add('hidden');
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        function speak(text) {
+            if (!voiceEnabled) return;
+            window.speechSynthesis.cancel(); // Stop previous
+            const u = new SpeechSynthesisUtterance(text);
+            const vName = document.getElementById('voice-select').value;
+            if (vName) u.voice = voices.find(v => v.name === vName);
+            window.speechSynthesis.speak(u);
+        }
+
+        // Speech Recognition
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = SR ? new SR() : null;
+        const micBtn = document.getElementById('mic-btn');
+
+        if (recognition) {
+            recognition.onstart = () => { micBtn.classList.add('listening'); };
+            recognition.onend = () => { micBtn.classList.remove('listening'); };
+            recognition.onresult = e => {
+                const text = e.results[0][0].transcript;
+                document.getElementById('chat-input').value = text;
+                sendMessage();
+            };
+        }
+
+        function startListening() {
+            if (!recognition) return alert("Browser not supported");
+            recognition.start();
+        }
+
+        function toggleChat() { document.getElementById('chat-window').classList.toggle('hidden'); }
+
+        async function sendMessage() {
+            const inp = document.getElementById('chat-input');
+            const msg = inp.value.trim(); if (!msg) return;
+            const con = document.getElementById('chat-messages');
+
+            // User Message
+            con.innerHTML += `<div class="chat-message chat-user">${msg}</div>`;
+            inp.value = '';
+            con.scrollTop = con.scrollHeight;
+
+            // Loading State
+            const loadingId = 'loading-' + Date.now();
+            con.innerHTML += `<div id="${loadingId}" class="chat-message chat-bot"><div class="loader w-4 h-4 border-2 border-t-indigo-500"></div></div>`;
+            con.scrollTop = con.scrollHeight;
+
+            try {
+                // Get context
+                const r = document.getElementById('resume-text').value;
+                const j = document.getElementById('jd-text').value;
+
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: msg,
+                        resume_text: r,
+                        jd_text: j
+                    })
+                });
+
+                const data = await res.json();
+
+                // Remove loading
+                document.getElementById(loadingId).remove();
+
+                // Bot Response
+                con.innerHTML += `<div class="chat-message chat-bot">${marked.parse(data.reply)}</div>`; // Using marked for markdown if available, or just text
+                speak(data.reply.replace(/[*#]/g, '')); // Simple cleanup for TTS
+
+            } catch (e) {
+                document.getElementById(loadingId).remove();
+                con.innerHTML += `<div class="chat-message chat-bot text-red-500">Error: ${e.message}</div>`;
+            }
+            con.scrollTop = con.scrollHeight;
+        }
+
+        // --- Analysis ---
+        async function startAnalysis() {
+            const r = document.getElementById('resume-text').value;
+            const j = document.getElementById('jd-text').value;
+            if (!r || !j) return alert('Please enter text');
+
+            document.getElementById('loading-state').classList.remove('hidden');
+            document.getElementById('loading-state').classList.add('flex');
+            document.getElementById('results-section').classList.add('hidden');
+
+            try {
+                const formData = new FormData();
+                formData.append('resume_text', r);
+                formData.append('job_description', j);
+
+                // Append files if selected
+                const resumeFile = document.getElementById('resume-upload').files[0];
+                const jdFile = document.getElementById('jd-upload').files[0];
+                if (resumeFile) formData.append('resume_file', resumeFile);
+                if (jdFile) formData.append('jd_file', jdFile);
+
+                const res = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                // Score
+                document.getElementById('score-text').textContent = data.totalScore;
+                document.getElementById('score-circle').style.strokeDashoffset = 440 - (440 * data.totalScore) / 100;
+
+                // Lists
+                const mk = document.getElementById('matched-keywords-container');
+                mk.innerHTML = data.matchedKeywords.length ? data.matchedKeywords.map(k => `<span class="px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-sm">${k}</span>`).join('') : 'None';
+
+                const mi = document.getElementById('missing-keywords-container');
+                mi.innerHTML = data.missingKeywords.length ? data.missingKeywords.map(k => `<span class="px-2 py-1 bg-rose-50 text-rose-700 rounded text-sm">${k}</span>`).join('') : 'None';
+
+                // Insights
+                document.getElementById('impact-score-text').textContent = data.impactScore + '/100';
+                document.getElementById('impact-bar').style.width = data.impactScore + '%';
+                document.getElementById('ai-suggestions').innerHTML = data.suggestions.map(s => `<div class="bg-indigo-50 p-2 text-sm text-indigo-900 rounded">${s}</div>`).join('');
+
+                // Checks
+                document.getElementById('checks-container').innerHTML = data.checks.map(c => `
+                    <div class="px-6 py-4 flex gap-4 border-b border-slate-50 dark:border-slate-700 last:border-0">
+                        <div class="${c.status === 'pass' ? 'text-emerald-500' : c.status === 'fail' ? 'text-rose-500' : 'text-amber-500'}"><i data-lucide="${c.status === 'pass' ? 'check-circle' : c.status === 'fail' ? 'x-circle' : 'alert-circle'}" class="w-5 h-5"></i></div>
+                        <div><div class="font-bold text-sm dark:text-white">${c.name}</div><div class="text-xs text-slate-500 dark:text-slate-400">${c.msg}</div></div>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+
+            } catch (e) { console.error(e); alert("Analysis Error: " + e.message); }
+            finally {
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('loading-state').classList.remove('flex');
+                document.getElementById('results-section').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+
+</html>
